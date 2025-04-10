@@ -1,0 +1,99 @@
+---
+title: "Ortho - profile analysis"
+author: "Przemek Biecek"
+date: "2025-04-03"
+output: html_notebook
+---
+
+# Load libraries and constants
+
+```{r}
+library("dplyr")
+library("tidyr")
+library("ggplot2")
+library("lubridate")
+
+Companionship <- c("family member","friend","stranger","significant other")
+
+```
+
+# Read and parse the data
+
+Files to be processed
+
+```{r}
+files <- list.files("database_ortho/", pattern = ".csv")
+```
+
+processing
+
+```{r}
+# focus on game 3
+SelectedTrack = 3
+
+list_play_counter <- 1
+list_play_summaries <- list()
+
+# FOR each day
+for (i in seq_along(files)) {
+  data <- read.table(paste0("database_ortho/", files[i]), sep=",", header = TRUE, fill=TRUE, stringsAsFactors = TRUE)
+
+  # fill up the missing data
+  for (j in 1:nrow(data)) {
+    if (!is.na(data$Points_X[j]))
+      data$Track_ID[j] <- data$Track_ID[j-1]
+  }  
+  
+  data %>% filter(is.na(Track_ID) | Track_ID == SelectedTrack) -> data_Track
+
+  # select only longer interactions
+  Team_Name_IDs <- c(which(!duplicated(c("",as.character(data_Track$Team_Name))))-1, length(data_Track$Team_Name)+1)
+  Selected_Team_Name_IDs <- which(diff(Team_Name_IDs) >250)
+  
+  ## FOR each team
+  for (k in seq_along(Selected_Team_Name_IDs)) {
+    cat(k, "/", length(Selected_Team_Name_IDs), "\n")
+    data_Team <- data_Track[Team_Name_IDs[Selected_Team_Name_IDs[k]]:(Team_Name_IDs[Selected_Team_Name_IDs[k]+1]-1),]
+    data_TeamSmall <- data_Team[!is.na(data_Team$Points_Status) & data_Team$Points_Status > 1,]
+    data_TeamSmall$ID <- seq_along(data_TeamSmall$Points_Status)
+    Games <- data_Team[data_Team$Completed != "",]
+    Games$ID <- paste0(1:nrow(Games),":")
+    
+  ## calculates team statistics
+    SuccessRate <- mean(Games$Mistake == "False")
+    Tries <- length(Games$Mistake)
+    TmeToComplete <- mean(Games$Time[Games$Mistake == "False"]/1000, na.rm = TRUE)
+
+    interesting_inds <- which(data_Team$Points_X[-1] >= 1000 &
+                              data_Team$Points_X[-nrow(data_Team)] <= 1000)
+    clusters <- sum(diff(sort(data_Team$Points_Y[interesting_inds])) > 200) + 1
+    
+    single_play <- data.frame(TeamName = as.character(Games$Team_Name[1]),
+             Tries = Tries,
+             SuccessRate = SuccessRate,
+             TimeToComplete = TmeToComplete,
+             clusters = clusters, stringsAsFactors = FALSE)
+    
+    list_play_summaries[[list_play_counter]] <- single_play
+    list_play_counter <- list_play_counter+1
+  }
+  }
+
+play_summaries <- do.call(rbind, list_play_summaries) 
+```
+
+# Plot summaries
+
+```{r}
+ggplot(play_summaries, aes(TimeToComplete, SuccessRate)) +
+  geom_point() + theme_bw() +
+  xlab("Time to complete [sec]") + ylab("Success Rate") +
+  ggtitle("Fast vs accurate")
+
+ggplot(play_summaries, aes(Tries, clusters)) +
+  geom_point() + theme_bw() +
+  scale_x_log10("Number of tries") + ylab("Number of routes") + 
+  ggtitle("Consistency")
+
+```
+
