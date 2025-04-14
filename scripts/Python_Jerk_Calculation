@@ -1,3 +1,5 @@
+#This will take series of x and y and provide a dataframe with velocity, acceleration and jerk calcuated.
+
 def calculate_motion_metrics(x, y):
     # Convert the x and y sequences into a DataFrame
     df = pd.DataFrame({'x': x, 'y': y})
@@ -51,6 +53,8 @@ def calculate_motion_metrics(x, y):
 
     return df
 
+#These will take the output from calculate_motion_metrics to compute the normalized jerk.
+
 def calculate_jerk(df):
     jerk_x = df['jerk_x']
     jerk_y = df['jerk_y']
@@ -71,7 +75,6 @@ def calculate_jerk(df):
     jerk = np.sqrt(0.5 * jerk_squared_sum * (x_length ** 5) / (displacement_squared_sum) ** 2)
 
     return jerk
-
 
 def calculate_jerk_x(df):
     jerk_x = df['jerk_x']
